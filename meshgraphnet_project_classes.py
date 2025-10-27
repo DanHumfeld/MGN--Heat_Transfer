@@ -1,0 +1,296 @@
+
+import math
+
+class FiniteElementMesh3D():
+    '''
+    The class of which a specific Mesh will be a member.
+    The term "Mesh" is quite general so the name used here is more specific.
+    This project is for experience and a 2D mesh will be adequate for that 
+    purpose. The 2D mesh class will be a subclass of this class.
+
+    A 3D mesh is comprised of vertices, edges connecting those vertices, 
+    faces comprised of closed loops of edges, and elements comprised of 
+    closed volumes bounded by faces.
+
+    Assumptions include: 
+    * Abaqus .inp files, .stp and/or .step files will be read using a TBD 
+    library.
+    
+    '''
+    
+    def __init__(self, vertices = [], edges = [], faces = [], elements = []):
+        ''' 
+        FiniteElementMesh constructor can be called with no arguments, 
+        resulting in an empty mesh. Loading and saving can be done
+        subsequently, using FiniteElementMesh methods.
+        '''
+        self.vertices = vertices
+        self.edges = edges
+        self.faces = faces
+        self.elements = elements
+        self._build_edge_lookup()
+        self._build_edge_properties()
+
+    def load(self, filename):
+        # Load mesh from file; not yet authored
+        self._build_edge_vertex_lookup()
+        self._build_edge_properties()
+        pass
+
+    def save(self, filename):
+        pass
+
+    def _build_edge_lookup(self):
+        self.edge_lookup = [[] for _ in self.vertices]
+        for edge in self.edges:
+            self.edge_lookup[edge.properties['vertex'][0]].append(edge.properties['id'])
+            self.edge_lookup[edge.properties['vertex'][1]].append(edge.properties['id'])
+
+    def _build_edge_properties(self):
+        for edge in self.edges:
+            edge.properties['vector'] = \
+                  self.vertices[edge.properties['vertex'][1]].properties['position'] \
+                - self.vertices[edge.properties['vertex'][0]].properties['position']
+            edge.properties['length'] = \
+                math.sqrt(sum([edge.properties['vector'][position]**2 for position in len(edge.properties['vector'])]))
+
+
+class FiniteElementMesh2D(FiniteElementMesh3D):
+    '''
+    The class of which a specific Mesh will be a member.
+    The term "Mesh" is quite general so the name used here is more specific.
+
+    A 2D mesh is comprised of vertices, edges connecting those vertices,
+    and elements comprised of closed loops of edges. For consistency with 3D
+    mesh definitions, the 2D elements will be called faces.
+
+    Inherits load and save methods from FiniteElementMesh3D.
+
+    There is nothing about this class that inherently limits it to representing
+    a 2D mesh. There is no intent to initialize volumes, but since the vertex, 
+    edge and face properties are not defined within this class, they could 
+    be defined in 3D and be non-co-planar. To that end, there is no particular
+    need for this Class to exist.
+
+    '''
+
+    def __init__(self, vertices = [], edges = [], faces = []):
+        ''' 
+        FiniteElementMesh constructor can be called with no arguments, 
+        resulting in an empty mesh. Loading and saving can be done
+        subsequently, using FiniteElementMesh3D methods.
+        '''
+        self.vertices = vertices
+        self.edges = edges
+        self.faces = faces
+
+
+class FiniteElementMesh1D(FiniteElementMesh3D):
+    '''
+    Placeholder for the class of which a specific Mesh will be a member.
+    The term "Mesh" is quite general so the name used here is more specific.
+    During this project, this placeholder will only possibly be authored.
+    This project is for experience with the target being a 2D mesh, but if
+    adequately frustrating problems emerge, there may be a time for trying
+    a 1D mesh graph net. There is, however, no literature supporting the 1D
+    use case for mesh graph nets.
+
+    A 1D mesh is comprised of vertices and elements connecting those vertices.
+    For consistency with 2D and 3D mesh definitions, the 1D elements will be 
+    called edges.
+
+    Inherits load and save methods from FiniteElementMesh3D.
+
+    There is nothing about this class that inherently limits it to representing
+    a 2D mesh. There is no intent to initialize volumes, but since the vertex, 
+    edge and face properties are not defined within this class, they could 
+    be defined in 3D and be non-co-planar. To that end, there is no particular
+    need for this Class to exist.
+    '''
+
+
+class MeshVertex():
+    '''
+    Placeholder for the class used to define a vertex in a mesh.
+    '''
+
+    def __init__(self, property_dict):
+        '''
+        MeshVertex constructor is called with a property_dict; the property
+        dictionary must be defined by each project.
+        
+        Minimum anticipated entries for this project:
+        id                  (int)
+        position            (2 element list float)
+        temperature         (float)
+        '''
+        self.properties = property_dict
+        
+
+class MeshEdge():
+    '''
+    Placeholder for the class used to define an edge in a mesh.
+    '''
+
+    def __init__(self, property_dict):
+        '''
+        MeshEdge constructor is called with a property_dict; the property
+        dictionary must be defined by each project.
+
+        Minimum anticipated entries for this project:
+        id                  (int)
+        vertex              (2 element list int)
+        vector              (2 element list float)
+        length              (float)
+        '''
+        self.properties = property_dict
+
+
+class MeshFace():
+    '''
+    Placeholder for the class used to define a face in a mesh.
+    '''
+
+    def __init__(self, property_dict):
+        '''
+        MeshFace constructor is called with a property_dict; the property
+        dictionary must be defined by each project.
+
+        This structure is not anticipated to be used in this project.
+        Minimum anticipated entries for a future project:
+        id                  (int)
+        face                (2+ element list int)
+        material            (TBD)
+        doc                 (float)
+        '''
+        self.properties = property_dict
+
+
+class MeshElement():
+    '''
+    Placeholder for the class used to define an element in a mesh.
+    '''
+
+    def __init__(self, property_dict):
+        '''
+        MeshElement constructor is called with a property_dict; the property
+        dictionary must be defined by each project.
+
+        This structure is not anticipated to be used in this project.
+        '''
+        self.properties = property_dict
+
+
+class MGNGraph():
+    '''
+    The class of which a specific graph will be a member.
+    The term "Graph" is quite general so the name used here is more specific.
+    There is no inherent physical dimension to a graph.
+
+    '''
+
+    def __init__(self, vertices = [], edges = []):
+        ''' 
+        MGNGraph constructor can be called with no arguments, resulting in an 
+        empty graph. Loading and saving can be done subsequently.
+        '''
+        self.vertices = vertices
+        self.edges = edges
+        self._build_edge_lookup()
+
+    def load(self, filename):
+        pass
+
+    def save(self, filename):
+        pass
+
+    def _build_edge_lookup(self):
+        self.edge_lookup = [[] for _ in self.vertices]
+        for edge in self.edges:
+            self.edge_lookup[edge.properties['vertex'][0]].append(edge.properties['id'])
+            self.edge_lookup[edge.properties['vertex'][1]].append(edge.properties['id'])
+
+    def create_sub_graph(cls, mesh, input_vertex_id, subgraph_depth):
+        '''For a given vertex within a mesh, produce a graph of the 
+        neighborhood out to a specified depth.'''
+        # Define the initial data structures
+        vertex_ids = [[input_vertex_id]]
+        vertex_id_list = [input_vertex_id]
+        vertices = [GraphVertex(mesh.vertices[input_vertex_id].properties)]
+        edge_ids = [[]]
+        edge_id_list = []
+        edges = []
+
+        # Loop, building up the subgraph
+        for depth in range(subgraph_depth):
+            # For each vertex in the current layer, find all new connecting edges
+            for vertex_id in vertex_id[depth]:
+                for edge_id in mesh.edge_lookup[vertex_id]:
+                    if (edge_id not in edge_id_list):
+                        if (len(edge_ids) == depth - 1):
+                            edge_ids.append([edge_id])
+                        else:
+                            edge_ids[depth].append(edge_id)
+                        edge_id_list.append(edge_id)
+                        edges.append(GraphEdge(mesh.edges[edge_id].properties))
+            # For each edge in the new layer, find all vertices that aren't already in the graph
+            for edge_id in edge_ids[depth]:
+                for vertex_id in mesh.edges[edge_id].properties['vertex']:
+                    if (vertex_id not in vertex_id_list):
+                        if (len(vertex_ids) == depth + 1):
+                            vertex_ids.append([vertex_id])
+                        else:
+                            vertex_ids[depth+1].append(vertex_id)
+                        vertex_id_list.append(vertex_id)
+                        vertices.append(GraphVertex(mesh.vertices[vertex_id].properties))
+
+        # Build and return the MGNGraph
+        return MGNGraph(vertices, edges)
+
+
+class GraphVertex():
+    '''
+    Placeholder for the class used to define a vertex in a graph.
+    '''
+
+    def __init__(self, property_dict):
+        '''
+        GraphVertex constructor is called with a property_dict; the property
+        dictionary must be defined by each project.
+        
+        Minimum anticipated entries for this project:
+        id                  (int)
+        position            (2 element list float)
+        temperature         (float)
+
+        Then it will gain other properties later including:
+        encoding            (encoding_size list float)
+        current_latent      (TBD list float, either encoding_size or encoding_size * (1 to message_passing_depth))
+        decoded_temperature (float)
+        '''
+        self.properties = property_dict
+        
+
+class GraphEdge():
+    '''
+    Placeholder for the class used to define an edge in a graph.
+    '''
+
+    def __init__(self, property_dict):
+        '''
+        MeshEdge constructor is called with a property_dict; the property
+        dictionary must be defined by each project.
+
+        Minimum anticipated entries for this project:
+        id                  (int)
+        vertex              (2 element list int)
+        vector              (2 element list float)
+        length              (float)
+
+        Then it will gain other properties later including:
+        encoding            (encoding_size list float)
+        current_latent      (TBD list float, either encoding_size or encoding_size * (1 to message_passing_depth))
+        '''
+        self.properties = property_dict
+
+
