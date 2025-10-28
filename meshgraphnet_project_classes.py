@@ -210,7 +210,7 @@ class MGNGraph():
             self.edge_lookup[edge.properties['vertex'][0]].append(edge.properties['id'])
             self.edge_lookup[edge.properties['vertex'][1]].append(edge.properties['id'])
 
-    def create_sub_graph(cls, mesh, input_vertex_id, subgraph_depth):
+    def create_subgraph(cls, mesh, input_vertex_id, subgraph_depth):
         '''For a given vertex within a mesh, produce a graph of the 
         neighborhood out to a specified depth.'''
         # Define the initial data structures
@@ -246,6 +246,24 @@ class MGNGraph():
 
         # Build and return the MGNGraph
         return MGNGraph(vertices, edges)
+    
+    def update_subgraph(self, mesh):
+        '''
+        This may not be necessary. The subgraphs are graphs consisting of 
+        GraphVertex and GraphEdge instances, defined using the properties of
+        MeshVertex and MeshEdge instances but without deep copying. Thus the 
+        subgraph properties may be automatically updating to/with/from the mesh
+        properties. 
+        Written in case it is necessary.
+        I don't know which is more efficient: updating the properties of each 
+        subgraph (which is redundant as each vertex is in many subgraphs) or
+        creating new subgraphs every epoch. The answer depends on the depth
+        and mesh connectivity.
+        '''
+        for vertex in self.vertices:
+            vertex.properties = mesh.vertices[vertex.properties["id"]].properties
+        for edge in self.edges:
+            edge.properties = mesh.edges[edge.properties["id"]].properties
 
 
 class GraphVertex():
