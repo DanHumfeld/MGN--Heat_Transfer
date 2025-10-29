@@ -1,5 +1,8 @@
 
 import math
+import numpy as np
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Dense, Multiply
 
 class FiniteElementMesh3D():
     '''
@@ -140,8 +143,6 @@ class MeshEdge():
         Minimum anticipated entries for this project:
         id                  (int)
         vertex              (2 element list int)
-        vector              (2 element list float)
-        length              (float)
         '''
         self.properties = property_dict
 
@@ -261,14 +262,15 @@ class MGNGraph():
         and mesh connectivity.
         '''
         for vertex in self.vertices:
-            vertex.properties = mesh.vertices[vertex.properties["id"]].properties
+            vertex.properties = mesh.vertices[vertex.properties['id']].properties
         for edge in self.edges:
-            edge.properties = mesh.edges[edge.properties["id"]].properties
+            edge.properties = mesh.edges[edge.properties['id']].properties
 
 
 class GraphVertex():
     '''
-    Placeholder for the class used to define a vertex in a graph.
+    Placeholder docstring for the class used to define a vertex in a graph.
+    Creates an inputs dictionary that is used by the MGN model
     '''
 
     def __init__(self, property_dict):
@@ -276,10 +278,14 @@ class GraphVertex():
         GraphVertex constructor is called with a property_dict; the property
         dictionary must be defined by each project.
         
+        Automatically one-hot encodes boolean entries in property_dict.
+
         Minimum anticipated entries for this project:
         id                  (int)
         position            (2 element list float)
         temperature         (float)
+        boundary            (boolean)
+        boundary_value      (float)
 
         Then it will gain other properties later including:
         encoding            (encoding_size list float)
@@ -287,14 +293,33 @@ class GraphVertex():
         decoded_temperature (float)
         '''
         self.properties = property_dict
+        self.inputs = self._build_inputs()
+
+    def _build_inputs(self):
+        inputs = {}
+        for property in self.properties:
+            if (property in ['id']):
+                pass
+            else:
+                if (type(property) in [np.float32, float]):
+                    inputs[property] = self.properties[property]
+                if (type(property) in [list]):
+                    if (type(self.properties[property][0]) in [np.float32, float]):
+                        for index in len(self.properties[property]):
+                            inputs[property + str(index)] = self.properties[property][index]
+                if (type(property) == bool):
+                    inputs[property + str(0)] = 1. * (1 - self.properties[property])
+                    inputs[property + str(1)] = 1. * self.properties[property]
+        return inputs
         
 
 class GraphEdge():
     '''
-    Placeholder for the class used to define an edge in a graph.
+    Placeholder docstring for the class used to define an edge in a graph.
+    Creates an inputs dictionary that is used by the MGN model
     '''
 
-    def __init__(self, property_dict):
+    def __init__(self, property_dict, vertex1, vertex2):
         '''
         MeshEdge constructor is called with a property_dict; the property
         dictionary must be defined by each project.
@@ -302,6 +327,8 @@ class GraphEdge():
         Minimum anticipated entries for this project:
         id                  (int)
         vertex              (2 element list int)
+
+        Built inputs include:
         vector              (2 element list float)
         length              (float)
 
@@ -310,5 +337,86 @@ class GraphEdge():
         current_latent      (TBD list float, either encoding_size or encoding_size * (1 to message_passing_depth))
         '''
         self.properties = property_dict
+        self.inputs = self._build_inputs(vertex1, vertex2)
+
+    def _build_inputs(self, vertex1, vertex2):
+        inputs = {}
+        for property in self.properties:
+            if (property in ['id']):
+                pass
+            elif (property in ['vertex']):
+                displacement_vector = vertex2.properties['position'] - vertex1.properties['position']
+                if (type(displacement_vector) in [np.float32, float]):
+                    edge_length = abs(displacement_vector)
+                    inputs['vector'] = displacement_vector
+                else:
+                    edge_length = math.sqrt(sum([displacement_vector[component] for component in range(len(displacement_vector))]))
+                    for component in len(displacement_vector):
+                        inputs['vector' + str(component)] = displacement_vector[component]
+                inputs['length'] = edge_length
+            else:
+                if (type(property) in [np.float32, float]):
+                    inputs[property] = self.properties[property]
+                if (type(property) in [list]):
+                    if (type(self.properties[property][0]) in [np.float32, float]):
+                        for index in len(self.properties[property]):
+                            inputs[property + str(index)] = self.properties[property][index]
+                if (type(property) == bool):
+                    inputs[property + str(0)] = 1. * (1 - self.properties[property])
+                    inputs[property + str(1)] = 1. * self.properties[property]
+        return inputs
 
 
+class MeshGraphNet():
+    '''
+    Class for a Mesh Graph Network.
+    While this class is generalizable, it is written for the current project
+    meaning that it assumes the MGN is learning to predict the temperature
+    evolution of a system, e.g. updating one variable only.
+    '''
+
+    initializer = 'glorot_uniform'
+    primary_activation = 'tanh'
+    final_activation = 'linear'
+
+    def __init__(self, graph_mesh_definition):
+        '''
+        The constructor for MeshGraphNet requires a definition dict including:
+        mesh: the mesh for this instance
+        depth: the number of times to pass messages
+        width: the dimensionality of the latent space
+        decoded_variables: a list of names of the variables output from the MGN
+        '''
+        self.mesh = graph_mesh_definition['mesh']
+        self.latent_space_length = graph_mesh_definition['width']
+        self.message_passing_depth = graph_mesh_definition['depth']
+        self.decoded_variables = graph_mesh_definition['decoded_variables']  
+        self.subgraphs = []
+        for vertex in self.mesh.vertices:
+            self.subgraphs.append(MGNGraph.create_subgraph(self.mesh, vertex.properties['id'], self.message_passing_depth))
+        self.vertex_encoder = MeshGraphNet._define_encoder(self.subgraphs[0].vertices[0], self.latent_space_length)
+        self.edge_encoder =   MeshGraphNet._define_encoder(self.subgraphs[0].edges[0],    self.latent_space_length)
+        self.processor_edge = MeshGraphNet._define_message_passing_edge(self.latent_space_length)
+        self.processor_vertex = MeshGraphNet._define_message_passing_vertex(self.latent_space_length)
+        self.vertex_decoder = MeshGraphNet._define_decoder(self.latent_space_length, len(self.decoded_variables))
+        self.model = self.build_model(self.message_passing_depth)
+
+    def _define_encoder(cls, graph_object, dimensions):
+        return Dense(dimensions, input_dim = len(graph_object.inputs), activation = MeshGraphNet.primary_activation, kernel_initializer = MeshGraphNet.initializer, bias_initializer = MeshGraphNet.initializer)
+
+    def _define_message_passsing_edge(cls, dimensions):
+        return Dense(dimensions, input_dim = 3 * dimensions, activation = MeshGraphNet.primary_activation, kernel_initializer = MeshGraphNet.initializer, bias_initializer = MeshGraphNet.initializer)
+
+    def _define_message_passsing_vertex(cls, dimensions):
+        #return Dense(dimensions, input_dim = len(graph_object.inputs), activation = MeshGraphNet.primary_activation, kernel_initializer = MeshGraphNet.initializer, bias_initializer = MeshGraphNet.initializer)
+
+    def _define_decoder(cls, dimensions, output_dimensions):
+        return Dense(output_dimensions, input_dim = dimensions, activation = MeshGraphNet.final_activation, kernel_initializer = MeshGraphNet.initializer, bias_initializer = MeshGraphNet.initializer)
+
+    def _define_layer_norm(cls, dimensions):
+        #return
+
+    def _build_model(message_passing_depth):
+        model = Sequential()
+        model.add
+        
