@@ -18,6 +18,10 @@ modifiable = trainable_params[0]
 n_feed = np.column_stack(np.arange(10))
 n_feed = tf.Variable(n_feed.reshape(len(n_feed[0]),1), trainable=True, dtype=tf.float32)
 
+components = tf.multiply(trainable_params[0], tf.reshape(n_feed, [1,10]))
+components = components[0,0:4]
+components = tf.multiply(components, 3)
+
 with tf.GradientTape(persistent=True) as tape_1:
     # Watch parameters
     tape_1.watch(n_feed)
@@ -28,9 +32,9 @@ with tf.GradientTape(persistent=True) as tape_1:
     print(loss1)
     loss2 = k.sum(tf.multiply(modifiable, tf.reshape(n_feed, [1,10])))
 
-    components = tf.multiply(trainable_params[0], tf.reshape(n_feed, [1,10]))
-    components = components[0,0:4]
-    components = tf.multiply(components, 3)
+    #components = tf.multiply(trainable_params[0], tf.reshape(n_feed, [1,10]))
+    #components = components[0,0:4]
+    #components = tf.multiply(components, 3)
     print(components)
     loss3 = k.sum(components)
     print(loss3)
